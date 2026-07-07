@@ -47,21 +47,19 @@ pip install -r requirements.txt
 ```
 
 ### Quick Start (Notebook)
-
-1. Place your image collection in a folder (e.g., `./images/`):
+1. Start the Qdrant container:
    ```bash
-   mkdir -p images
-   # Add your JPEG/PNG files here
+   docker compose up -d
    ```
 
 2. Open the notebook:
    ```bash
-   jupyter notebook poc.ipynb
+   jupyter notebook notebooks/1-poc.ipynb
    ```
 
 3. Run the cells to:
    - Load the SigLIP2 model (auto-downloads from Hugging Face)
-   - Encode all images and index into Qdrant (local mode)
+   - Load & encode the Olivetti Faces + Caltech-101 datasets, index into Qdrant (server mode)
    - Search by text query
    - Search by image query
 

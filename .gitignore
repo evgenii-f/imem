@@ -48,8 +48,11 @@ env/
 *.pem
 *.key
 
+# first proof of concept notebook with personal images
+notebooks/00-poc-personal-imgs.ipynb
+
 # Data & Models
-images/
+# `data/` includes downloaded/generated test datasets (Olivetti, Caltech-101, etc.)
 data/
 downloads/
 models/
