@@ -76,6 +76,30 @@ pip install -r requirements.txt
   - Better retrieval quality, slower inference
   - Drop-in replacement (same API)
 
+## Project Structure
+
+- `src/encoder.py` — `ImageTextEncoder`: model loading, image/text embedding (SigLIP2, MPS/CUDA/CPU)
+- `src/vector_store.py` — `ImageVectorStore`: Qdrant wrapper (local & server mode), de-dup, search
+- `src/dataloader.py` — test dataset loaders (Olivetti Faces, Caltech-101)
+- `src/utils/visualize.py` — notebook result-grid helper
+- `notebooks/01-poc.ipynb` — local/embedded Qdrant POC (test datasets)
+- `notebooks/00-poc-personal-imgs.ipynb` — server/container Qdrant POC using your own image collection (`docker compose up -d`)
+- `tests/` — pytest smoke tests for the encoder & vector store modules
+
+## Testing
+
+Basic smoke tests cover the encoder pipeline (shapes, normalization, error handling) and the
+Qdrant vector store wrapper (in-memory mode, no server needed):
+
+```bash
+pip install -r requirements.txt
+pytest tests/ -v
+```
+
+`tests/test_encoder.py` downloads the real SigLIP2 model on first run (network required) —
+it auto-skips if `torch`/`transformers` aren't installed. `tests/test_vector_store.py` runs
+fully offline against an in-memory Qdrant instance.
+
 ## Performance Notes (M4)
 
 - **First-run:** ~30–60s (model download + warmup)
