@@ -29,9 +29,11 @@ from typing import List, Optional
 
 from tqdm import tqdm
 
+from .config import CONFIG
+
 # Root directory for all locally materialized/downloaded test data.
-# Git-ignored via the `data/` entry in .gitignore.
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+# Git-ignored via the `data/` entry in .gitignore. Configured in config.yml.
+DATA_DIR = CONFIG.dataset.data_dir
 
 
 @dataclass

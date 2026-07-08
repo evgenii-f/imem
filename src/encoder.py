@@ -19,8 +19,10 @@ from PIL import Image
 from tqdm import tqdm
 from transformers import AutoModel, AutoProcessor
 
-DEFAULT_MODEL_ID = "google/siglip2-base-patch16-224"
-DEFAULT_BATCH_SIZE = 32
+from .config import CONFIG
+
+DEFAULT_MODEL_ID = CONFIG.encoder.model_id
+DEFAULT_BATCH_SIZE = CONFIG.encoder.batch_size
 
 
 def get_device() -> torch.device:

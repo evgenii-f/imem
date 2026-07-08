@@ -16,7 +16,17 @@ from qdrant_client.models import (
 )
 from tqdm import tqdm
 
-DEFAULT_UPSERT_BATCH_SIZE = 256
+from .config import CONFIG
+
+DEFAULT_UPSERT_BATCH_SIZE = CONFIG.vector_store.upsert_batch_size
+
+# Maps the string metric from config.yml to Qdrant's Distance enum.
+_DISTANCE_MAP = {
+    "cosine": Distance.COSINE,
+    "euclid": Distance.EUCLID,
+    "dot": Distance.DOT,
+    "manhattan": Distance.MANHATTAN,
+}
 
 
 def point_id_from_path(path: str) -> int:
@@ -35,7 +45,7 @@ class ImageVectorStore:
         embedding_dim: int,
         path: Optional[str] = None,
         host: Optional[str] = None,
-        port: int = 6333,
+        port: int = CONFIG.qdrant.port,
         recreate: bool = False,
     ):
         if host is not None:
@@ -59,7 +69,7 @@ class ImageVectorStore:
                 collection_name=collection_name,
                 vectors_config=VectorParams(
                     size=embedding_dim,
-                    distance=Distance.COSINE,
+                    distance=_DISTANCE_MAP[CONFIG.vector_store.distance.lower()],
                 ),
             )
 
@@ -163,7 +173,7 @@ class ImageVectorStore:
 
         return total_written
 
-    def search(self, query_embedding: np.ndarray, top_k: int = 5):
+    def search(self, query_embedding: np.ndarray, top_k: int = CONFIG.vector_store.top_k):
         query_embedding = np.asarray(query_embedding)
 
         if query_embedding.ndim != 1:
