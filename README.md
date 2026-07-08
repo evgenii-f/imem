@@ -100,21 +100,6 @@ pytest tests/ -v
 it auto-skips if `torch`/`transformers` aren't installed. `tests/test_vector_store.py` runs
 fully offline against an in-memory Qdrant instance.
 
-## Performance Notes (M4)
-
-- **First-run:** ~30–60s (model download + warmup)
-- **Indexing:** ~50–100 images/min (batch=32, single-threaded)
-- **Query latency:** ~100–200ms per text/image query
-- **Vector DB:** Qdrant local mode has no network overhead
-
-## Next Steps
-
-- [ ] Notebook POC (text/image search working)
-- [ ] Batch indexing pipeline for large image sets
-- [ ] FastAPI server with `/search/text`, `/search/image`, `/index` endpoints
-- [ ] Telegram bot UI
-- [ ] Optional: Deploy vector DB as standalone Qdrant server
-
 ## References
 
 - [SigLIP Paper](https://arxiv.org/abs/2303.15343)
