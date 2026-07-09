@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-import hashlib
+import uuid
 from typing import Dict, List, Optional, Sequence
 
 import numpy as np
+from blake3 import blake3
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
     Distance,
@@ -11,6 +12,7 @@ from qdrant_client.models import (
     Filter,
     MatchAny,
     MatchValue,
+    PayloadSchemaType,
     PointStruct,
     VectorParams,
 )
@@ -19,6 +21,13 @@ from tqdm import tqdm
 from .config import CONFIG
 
 DEFAULT_UPSERT_BATCH_SIZE = CONFIG.vector_store.upsert_batch_size
+
+# Indexed payload fields used for de-duplication lookups.
+FILE_HASH_FIELD = "file_hash"  # BLAKE3 of the raw file bytes
+PATH_FIELD = "path"            # source file path
+
+# Bytes read per chunk when streaming a file through the hasher.
+_HASH_CHUNK = 1 << 20  # 1 MiB
 
 # Maps the string metric from config.yml to Qdrant's Distance enum.
 _DISTANCE_MAP = {
@@ -29,14 +38,39 @@ _DISTANCE_MAP = {
 }
 
 
-def point_id_from_path(path: str) -> int:
-    return int(hashlib.md5(path.encode("utf-8")).hexdigest()[:16], 16)
+def file_hash(path: str) -> str:
+    """
+    Returns the BLAKE3 hex digest of a file's raw bytes.
+
+    Cheap (no image decode) and exact: it detects byte-identical duplicate
+    files regardless of their path. It does not recognize the same picture
+    re-encoded to a different format/quality as a duplicate.
+    """
+    hasher = blake3()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(_HASH_CHUNK), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
+def point_id_from_path(path: str) -> str:
+    """
+    Deterministic Qdrant point id (UUID) derived from the source path. The id is
+    intentionally path-based, not content-based: re-indexing the same path
+    updates its point in place, while the same file under a different path is
+    stored as a separate point.
+    """
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, path))
 
 
 class ImageVectorStore:
     """
     Thin wrapper around Qdrant for storing/searching image embeddings.
-    Each point carries a `path` payload field used for de-duplication and display.
+
+    Each point is keyed by a path-derived id and carries two indexed payload
+    fields: `path` (the source file, for display/retrieval — the image itself is
+    not stored) and `file_hash` (BLAKE3 of the file's bytes, for detecting
+    duplicate files regardless of path).
     """
 
     def __init__(
@@ -72,28 +106,86 @@ class ImageVectorStore:
                     distance=_DISTANCE_MAP[CONFIG.vector_store.distance.lower()],
                 ),
             )
+            # Index both lookup fields so duplicate checks match quickly. Payload
+            # indexes only take effect on a real Qdrant server, so skip the no-op
+            # (and its warning) in local/in-memory mode.
+            if host is not None:
+                for field in (FILE_HASH_FIELD, PATH_FIELD):
+                    self.client.create_payload_index(
+                        collection_name=collection_name,
+                        field_name=field,
+                        field_schema=PayloadSchemaType.KEYWORD,
+                    )
 
-    def image_exists(self, path: str) -> bool:
+    # ---- content-based duplicate checks (by file bytes) ----
+
+    def image_exist(self, path: str) -> bool:
+        """Whether a file with the same bytes as `path` is already indexed."""
+        digest = file_hash(path)
         hits, _ = self.client.scroll(
             collection_name=self.collection_name,
             scroll_filter=Filter(
-                must=[
-                    FieldCondition(
-                        key="path",
-                        match=MatchValue(value=path),
-                    )
-                ]
+                must=[FieldCondition(key=FILE_HASH_FIELD, match=MatchValue(value=digest))]
             ),
             limit=1,
-            with_payload=True,
+            with_payload=False,
             with_vectors=False,
         )
         return len(hits) > 0
 
-    def images_exist(self, paths: Sequence[str]) -> Dict[str, bool]:
+    def image_exists(self, paths: Sequence[str]) -> Dict[str, bool]:
         """
-        Batched existence check: looks up all given paths in a single
-        Qdrant query (via MatchAny) instead of one round-trip per path.
+        Batched content check: BLAKE3-hashes each file and resolves all distinct
+        hashes in a single indexed query. Returns a dict mapping each input path
+        to whether a file with that content is indexed. Unreadable files are
+        reported as not-indexed.
+        """
+        paths = list(paths)
+        if not paths:
+            return {}
+
+        path_to_hash: Dict[str, Optional[str]] = {}
+        for p in paths:
+            try:
+                path_to_hash[p] = file_hash(p)
+            except Exception as e:
+                print(f"Failed to hash {p}: {e}")
+                path_to_hash[p] = None
+
+        digests = sorted({h for h in path_to_hash.values() if h is not None})
+        present: set = set()
+        if digests:
+            hits, _ = self.client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=Filter(
+                    must=[FieldCondition(key=FILE_HASH_FIELD, match=MatchAny(any=digests))]
+                ),
+                limit=len(digests),
+                with_payload=[FILE_HASH_FIELD],
+                with_vectors=False,
+            )
+            present = {hit.payload[FILE_HASH_FIELD] for hit in hits}
+
+        return {p: (h is not None and h in present) for p, h in path_to_hash.items()}
+
+    # ---- path-based presence checks (by source path) ----
+
+    def path_exist(self, path: str) -> bool:
+        """Whether the given source path is already indexed."""
+        hits, _ = self.client.scroll(
+            collection_name=self.collection_name,
+            scroll_filter=Filter(
+                must=[FieldCondition(key=PATH_FIELD, match=MatchValue(value=path))]
+            ),
+            limit=1,
+            with_payload=False,
+            with_vectors=False,
+        )
+        return len(hits) > 0
+
+    def path_exists(self, paths: Sequence[str]) -> Dict[str, bool]:
+        """
+        Batched path check: looks up all given paths in a single indexed query.
         Returns a dict mapping each input path to whether it's indexed.
         """
         paths = list(paths)
@@ -103,22 +195,18 @@ class ImageVectorStore:
         hits, _ = self.client.scroll(
             collection_name=self.collection_name,
             scroll_filter=Filter(
-                must=[
-                    FieldCondition(
-                        key="path",
-                        match=MatchAny(any=paths),
-                    )
-                ]
+                must=[FieldCondition(key=PATH_FIELD, match=MatchAny(any=paths))]
             ),
             limit=len(paths),
-            with_payload=True,
+            with_payload=[PATH_FIELD],
             with_vectors=False,
         )
-        existing_paths = {hit.payload["path"] for hit in hits}
-        return {path: path in existing_paths for path in paths}
+        present = {hit.payload[PATH_FIELD] for hit in hits}
+        return {p: p in present for p in paths}
 
     def filter_new_paths(self, paths: Sequence[str]) -> List[str]:
-        existence = self.images_exist(paths)
+        """Returns the subset of `paths` not yet present in the store (by path)."""
+        existence = self.path_exists(paths)
         return [p for p in paths if not existence[p]]
 
     def upsert_images(
@@ -155,14 +243,22 @@ class ImageVectorStore:
             batch_embeddings = embeddings[start:end]
             batch_paths = paths[start:end]
 
-            points = [
-                PointStruct(
-                    id=point_id_from_path(path),
-                    vector=batch_embeddings[i].tolist(),
-                    payload={"path": path},
+            points = []
+            for i, path in enumerate(batch_paths):
+                # Hash the file bytes for the payload. Skip unreadable files
+                # rather than aborting the whole batch.
+                try:
+                    digest = file_hash(path)
+                except Exception as e:
+                    print(f"Failed to hash {path}: {e}")
+                    continue
+                points.append(
+                    PointStruct(
+                        id=point_id_from_path(path),
+                        vector=batch_embeddings[i].tolist(),
+                        payload={PATH_FIELD: path, FILE_HASH_FIELD: digest},
+                    )
                 )
-                for i, path in enumerate(batch_paths)
-            ]
 
             if points:
                 self.client.upsert(

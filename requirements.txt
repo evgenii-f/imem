@@ -3,6 +3,7 @@ torchvision>=0.18.0
 transformers>=4.40.0
 Pillow>=10.0.0
 qdrant-client>=1.18.0
+blake3>=0.4.0
 faiss-cpu>=1.13.0
 # jupyter>=1.0.0
 ipykernel>=6.30.0
