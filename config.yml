@@ -1,0 +1,20 @@
+# iMem application/model constants.
+# Infra/connection settings live in config.ini; loaded together by src/config.py.
+
+encoder:
+  # Hugging Face model id for the dual encoder (auto-downloaded on first use).
+  model_id: google/siglip2-base-patch16-224
+  # Images per batch when encoding.
+  batch_size: 32
+
+vector_store:
+  # Points per batch when upserting into Qdrant.
+  upsert_batch_size: 256
+  # Default number of results returned by a search.
+  top_k: 5
+  # Similarity metric: cosine | euclid | dot | manhattan.
+  distance: cosine
+
+dataset:
+  # Root dir for materialized/downloaded test data (relative to project root).
+  data_dir: data
