@@ -44,6 +44,11 @@ class DatasetConfig:
 
 
 @dataclass(frozen=True)
+class IndexerConfig:
+    extensions: frozenset
+
+
+@dataclass(frozen=True)
 class QdrantConfig:
     host: str
     port: int
@@ -57,6 +62,7 @@ class Config:
     encoder: EncoderConfig
     vector_store: VectorStoreConfig
     dataset: DatasetConfig
+    indexer: IndexerConfig
     qdrant: QdrantConfig
 
 
@@ -82,6 +88,9 @@ def _load() -> Config:
         dataset=DatasetConfig(
             # Resolve relative to the project root so callers get an absolute path.
             data_dir=(PROJECT_ROOT / str(y["dataset"]["data_dir"])).resolve(),
+        ),
+        indexer=IndexerConfig(
+            extensions=frozenset(str(ext).lower() for ext in y["indexer"]["extensions"]),
         ),
         qdrant=QdrantConfig(
             host=q.get("host"),
