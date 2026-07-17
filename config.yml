@@ -18,3 +18,13 @@ vector_store:
 dataset:
   # Root dir for materialized/downloaded test data (relative to project root).
   data_dir: data
+
+indexer:
+  # File extensions treated as images during recursive folder scans (case-insensitive).
+  extensions:
+    - .jpg
+    - .jpeg
+    - .png
+    - .webp
+    - .bmp
+    - .gif
