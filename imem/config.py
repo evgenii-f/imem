@@ -45,6 +45,7 @@ class DatasetConfig:
 
 @dataclass(frozen=True)
 class IndexerConfig:
+    chunk_size: int
     extensions: frozenset
 
 
@@ -90,6 +91,7 @@ def _load() -> Config:
             data_dir=Path(str(y["dataset"]["data_dir"])),
         ),
         indexer=IndexerConfig(
+            chunk_size=int(y["indexer"]["chunk_size"]),
             extensions=frozenset(str(ext).lower() for ext in y["indexer"]["extensions"]),
         ),
         qdrant=QdrantConfig(

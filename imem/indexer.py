@@ -29,6 +29,7 @@ from .encoder import ImageTextEncoder
 from .vector_store import ImageVectorStore
 
 DEFAULT_EXTENSIONS = CONFIG.indexer.extensions
+DEFAULT_CHUNK_SIZE = CONFIG.indexer.chunk_size
 
 
 def iter_image_paths(
@@ -63,21 +64,30 @@ def index_folders(
     store: ImageVectorStore,
     encoder: ImageTextEncoder,
     extensions: FrozenSet[str] = DEFAULT_EXTENSIONS,
+    chunk_size: int = DEFAULT_CHUNK_SIZE,
 ) -> IndexReport:
     """
     Discovers images under `folders`, skips paths already present in `store`,
-    encodes and upserts the rest. Returns a report of what happened.
+    then encodes and upserts the rest in chunks of `chunk_size`.
+
+    Each chunk is encoded and immediately upserted before the next is read, so
+    the collection is populated incrementally (an interrupted run keeps every
+    completed chunk) and peak memory stays bounded to one chunk of embeddings.
     """
     paths = iter_image_paths(folders, extensions)
     new_paths = store.filter_new_paths(paths)
 
     indexed = 0
     failed: List[str] = []
-    if new_paths:
-        embeddings, valid_paths = encoder.encode_images(new_paths)
-        failed = [p for p in new_paths if p not in set(valid_paths)]
+    n_chunks = (len(new_paths) + chunk_size - 1) // chunk_size
+    for chunk_idx, start in enumerate(range(0, len(new_paths), chunk_size), 1):
+        chunk = new_paths[start : start + chunk_size]
+        desc = "Encoding images" if n_chunks == 1 else f"Encoding images [chunk {chunk_idx}/{n_chunks}]"
+
+        embeddings, valid_paths = encoder.encode_images(chunk, desc=desc)
+        failed.extend(p for p in chunk if p not in set(valid_paths))
         if valid_paths:
-            indexed = store.upsert_images(embeddings, valid_paths)
+            indexed += store.upsert_images(embeddings, valid_paths, show_progress=False)
 
     return IndexReport(
         found=len(paths),

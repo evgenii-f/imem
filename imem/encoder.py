@@ -62,6 +62,7 @@ class ImageTextEncoder:
         image_paths: Sequence[Union[str, Path]],
         batch_size: int = DEFAULT_BATCH_SIZE,
         show_progress: bool = True,
+        desc: str = "Encoding images",
     ) -> Tuple[np.ndarray, List[str]]:
         """
         Encodes a list of image paths into L2-normalized embeddings.
@@ -78,7 +79,7 @@ class ImageTextEncoder:
         # a postfix so both are visible: "2272/132276 [.. img/s, batch=71/4134]".
         with tqdm(
             total=n,
-            desc="Encoding images",
+            desc=desc,
             unit="img",
             disable=not show_progress or n <= batch_size,
         ) as pbar:
