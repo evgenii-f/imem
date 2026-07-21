@@ -2,12 +2,13 @@
 config.py — single source of truth for iMem's tunable constants.
 
 Application/model constants live in ``config.yml`` (nested, human-editable);
-Qdrant connection & infra settings live in ``config.ini``. Both files sit at
-the project root. This module loads them once at import time and exposes them
-through a frozen ``CONFIG`` object, so the rest of the codebase never hardcodes
-these values.
+Qdrant connection & infra settings live in ``config.ini``. Both files ship
+inside the package and are loaded via ``importlib.resources`` (so they resolve
+correctly whether installed as a wheel or run from source). This module loads
+them once at import time and exposes them through a frozen ``CONFIG`` object, so
+the rest of the codebase never hardcodes these values.
 
-    from src.config import CONFIG
+    from imem.config import CONFIG
     CONFIG.encoder.model_id      # "google/siglip2-base-patch16-224"
     CONFIG.qdrant.port           # 6333
 """
@@ -16,13 +17,12 @@ from __future__ import annotations
 
 import configparser
 from dataclasses import dataclass
+from importlib.resources import files
 from pathlib import Path
 
 import yaml
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-CONFIG_YML = PROJECT_ROOT / "config.yml"
-CONFIG_INI = PROJECT_ROOT / "config.ini"
+_PACKAGE = "imem"
 
 
 @dataclass(frozen=True)
@@ -67,12 +67,11 @@ class Config:
 
 
 def _load() -> Config:
-    with open(CONFIG_YML, "r", encoding="utf-8") as f:
-        y = yaml.safe_load(f)
+    resources = files(_PACKAGE)
+    y = yaml.safe_load(resources.joinpath("config.yml").read_text(encoding="utf-8"))
 
     ini = configparser.ConfigParser()
-    if not ini.read(CONFIG_INI, encoding="utf-8"):
-        raise FileNotFoundError(f"Config file not found: {CONFIG_INI}")
+    ini.read_string(resources.joinpath("config.ini").read_text(encoding="utf-8"))
     q = ini["qdrant"]
 
     return Config(
@@ -86,8 +85,9 @@ def _load() -> Config:
             distance=str(y["vector_store"]["distance"]),
         ),
         dataset=DatasetConfig(
-            # Resolve relative to the project root so callers get an absolute path.
-            data_dir=(PROJECT_ROOT / str(y["dataset"]["data_dir"])).resolve(),
+            # Dev-only location for materialized test datasets (used by
+            # tools/dataloader.py); kept relative, resolved by callers against CWD.
+            data_dir=Path(str(y["dataset"]["data_dir"])),
         ),
         indexer=IndexerConfig(
             extensions=frozenset(str(ext).lower() for ext in y["indexer"]["extensions"]),

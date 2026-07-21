@@ -7,15 +7,15 @@ here, de-duplication and payload (path + file_hash) handled by
 ImageVectorStore, embedding computed by ImageTextEncoder.
 
 Usage:
-    from src.indexer import index_folders
-    from src.encoder import ImageTextEncoder
-    from src.vector_store import ImageVectorStore
+    from imem.indexer import index_folders
+    from imem.encoder import ImageTextEncoder
+    from imem.vector_store import ImageVectorStore
 
     encoder = ImageTextEncoder()
     store = ImageVectorStore("images", encoder.embedding_dim, host="localhost")
     report = index_folders(["/path/to/photos"], store, encoder)
 
-Driven from the command line via `python -m src.cli add` (see src/cli.py).
+Driven from the command line via `python -m imem.cli add` (see imem/cli.py).
 """
 
 from __future__ import annotations

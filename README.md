@@ -72,25 +72,25 @@ Qdrant server (`docker compose up -d`).
 **Index** a folder (recursively) into a collection:
 
 ```bash
-python -m src.cli add ~/Photos --collection personal
+python -m imem.cli add ~/Photos --collection personal
 ```
 
 **Search** by text, or by a reference image (auto-detected from the argument):
 
 ```bash
-python -m src.cli query "red cat on sofa"
-python -m src.cli query ~/reference.jpg --collection personal -k 10
+python -m imem.cli query "red cat on sofa"
+python -m imem.cli query ~/reference.jpg --collection personal -k 10
 ```
 
 **Manage collections:**
 
 ```bash
-python -m src.cli collection ls
-python -m src.cli collection rm personal -f
+python -m imem.cli collection ls
+python -m imem.cli collection rm personal -f
 ```
 
 Add `--help` to any command for its full flag list. All commands run via
-`python -m src.cli` today; this becomes a single `imem` entry point once the package
+`python -m imem.cli` today; this becomes a single `imem` entry point once the package
 is installable.
 
 ## Model Details
@@ -108,15 +108,15 @@ is installable.
 
 ## Project Structure
 
-- `src/cli.py` — `imem` command-line entry point (`add`, `query`, `collection ls/rm`)
-- `src/encoder.py` — `ImageTextEncoder`: model loading, image/text embedding (SigLIP2, MPS/CUDA/CPU)
-- `src/vector_store.py` — `ImageVectorStore`: Qdrant wrapper (local & server mode), de-dup, search
-- `src/indexer.py` — recursive folder discovery + indexing (`index_folders`, `iter_image_paths`)
-- `src/query.py` — text/image query against a collection (`query_images`)
-- `src/catalog.py` — instance-level collection ops (list, count, delete)
-- `src/config.py` — loads `config.yml` (model/app) + `config.ini` (Qdrant) into a frozen `CONFIG`
-- `src/dataloader.py` — test dataset loaders (Olivetti Faces, Caltech-101)
-- `src/utils/visualize.py` — notebook result-grid helper
+- `imem/cli.py` — `imem` command-line entry point (`add`, `query`, `collection ls/rm`)
+- `imem/encoder.py` — `ImageTextEncoder`: model loading, image/text embedding (SigLIP2, MPS/CUDA/CPU)
+- `imem/vector_store.py` — `ImageVectorStore`: Qdrant wrapper (local & server mode), de-dup, search
+- `imem/indexer.py` — recursive folder discovery + indexing (`index_folders`, `iter_image_paths`)
+- `imem/query.py` — text/image query against a collection (`query_images`)
+- `imem/catalog.py` — instance-level collection ops (list, count, delete)
+- `imem/config.py` (+ `config.yml`, `config.ini`) — packaged config loaded into a frozen `CONFIG`
+- `tools/dataloader.py` — test dataset loaders (Olivetti Faces, Caltech-101) — dev-only, not packaged
+- `tools/visualize.py` — notebook result-grid helper — dev-only, not packaged
 - `notebooks/01-poc.ipynb` — local/embedded Qdrant POC (test datasets)
 - `notebooks/00-poc-personal-imgs.ipynb` — server/container Qdrant POC using your own image collection (`docker compose up -d`)
 - `tests/` — pytest tests for the encoder, vector store, indexer, query & catalog modules

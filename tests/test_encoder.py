@@ -1,5 +1,5 @@
 """
-Smoke tests for the image/text encoder pipeline (src/encoder.py).
+Smoke tests for the image/text encoder pipeline (imem/encoder.py).
 
 These load the real SigLIP2 model (auto-downloaded from Hugging Face on
 first run), so they require network access + the ML dependencies from
@@ -18,7 +18,7 @@ import pytest
 torch = pytest.importorskip("torch")
 pytest.importorskip("transformers")
 
-from src.encoder import ImageTextEncoder, get_device, l2_normalize  # noqa: E402
+from imem.encoder import ImageTextEncoder, get_device, l2_normalize  # noqa: E402
 
 
 def test_get_device_returns_valid_device():

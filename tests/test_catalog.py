@@ -1,5 +1,5 @@
 """
-Unit tests for instance-level collection operations (src/catalog.py).
+Unit tests for instance-level collection operations (imem/catalog.py).
 
 Uses a bare in-memory QdrantClient with collections created directly (no
 ImageVectorStore, no images) so these stay focused on the catalog behavior:
@@ -19,7 +19,7 @@ pytest.importorskip("qdrant_client")
 from qdrant_client import QdrantClient  # noqa: E402
 from qdrant_client.models import Distance, PointStruct, VectorParams  # noqa: E402
 
-from src.catalog import (  # noqa: E402
+from imem.catalog import (  # noqa: E402
     collection_count,
     collection_exists,
     drop_collection,

@@ -1,5 +1,5 @@
 # iMem application/model constants.
-# Infra/connection settings live in config.ini; loaded together by src/config.py.
+# Infra/connection settings live in config.ini; loaded together by imem/config.py.
 
 encoder:
   # Hugging Face model id for the dual encoder (auto-downloaded on first use).

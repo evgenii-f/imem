@@ -5,11 +5,11 @@ Subcommands wrap the library functions: `add` (indexing), `query` (search), and
 `collection ls/rm` (management).
 
 Usage:
-    python -m src.cli add ~/Photos --collection personal
-    python -m src.cli query "red cat on sofa"
-    python -m src.cli query ~/reference.jpg --collection personal -k 10
-    python -m src.cli collection ls
-    python -m src.cli collection rm old_collection
+    python -m imem.cli add ~/Photos --collection personal
+    python -m imem.cli query "red cat on sofa"
+    python -m imem.cli query ~/reference.jpg --collection personal -k 10
+    python -m imem.cli collection ls
+    python -m imem.cli collection rm old_collection
 """
 
 from __future__ import annotations

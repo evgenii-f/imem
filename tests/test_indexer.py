@@ -1,5 +1,5 @@
 """
-Integration tests for the indexing pipeline (src/indexer.py).
+Integration tests for the indexing pipeline (imem/indexer.py).
 
 Uses Qdrant's in-memory mode and a FakeEncoder (random embeddings) instead of
 loading a real model, so these run fast without network/GPU access — same
@@ -25,8 +25,8 @@ pytest.importorskip("transformers")
 pytest.importorskip("qdrant_client")
 pytest.importorskip("blake3")
 
-from src.indexer import IndexReport, _parse_extensions, index_folders, iter_image_paths  # noqa: E402
-from src.vector_store import ImageVectorStore  # noqa: E402
+from imem.indexer import IndexReport, _parse_extensions, index_folders, iter_image_paths  # noqa: E402
+from imem.vector_store import ImageVectorStore  # noqa: E402
 
 EMBEDDING_DIM = 8
 
@@ -171,7 +171,7 @@ def test_index_folders_no_images_found(store: ImageVectorStore, tmp_path: Path):
 # ---- _parse_extensions ----
 
 def test_parse_extensions_none_returns_default():
-    from src.indexer import DEFAULT_EXTENSIONS
+    from imem.indexer import DEFAULT_EXTENSIONS
 
     assert _parse_extensions(None) == DEFAULT_EXTENSIONS
 
