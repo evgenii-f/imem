@@ -28,9 +28,10 @@ iMem uses multimodal embeddings to encode both images and text into a shared emb
 └───────┘   └─────────┘
 ```
 
-**Phase 1 (current):** Jupyter notebook POC for indexing and retrieval  
-**Phase 2 (planned):** FastAPI server  
-**Phase 3 (planned):** Telegram bot client  
+**Phase 1 (done):** Jupyter notebook POC for indexing and retrieval  
+**Phase 2 (done):** Modular pipeline + command-line interface — indexing, text/image search, collection management  
+**Phase 3 (current):** Local install — pip-installable `imem`, embedded Qdrant by default (no server required)  
+**Phase 4 (planned):** Dockerized web frontend + FastAPI backend over the same library (Qdrant as a server)  
 
 ## Setup
 
@@ -54,7 +55,7 @@ pip install -r requirements.txt
 
 2. Open the notebook:
    ```bash
-   jupyter notebook notebooks/1-poc.ipynb
+   jupyter notebook notebooks/01-poc.ipynb
    ```
 
 3. Run the cells to:
@@ -62,6 +63,35 @@ pip install -r requirements.txt
    - Load & encode the Olivetti Faces + Caltech-101 datasets, index into Qdrant (server mode)
    - Search by text query
    - Search by image query
+
+## CLI
+
+The pipeline is also driven from the command line. All commands talk to a running
+Qdrant server (`docker compose up -d`).
+
+**Index** a folder (recursively) into a collection:
+
+```bash
+python -m src.cli add ~/Photos --collection personal
+```
+
+**Search** by text, or by a reference image (auto-detected from the argument):
+
+```bash
+python -m src.cli query "red cat on sofa"
+python -m src.cli query ~/reference.jpg --collection personal -k 10
+```
+
+**Manage collections:**
+
+```bash
+python -m src.cli collection ls
+python -m src.cli collection rm personal -f
+```
+
+Add `--help` to any command for its full flag list. All commands run via
+`python -m src.cli` today; this becomes a single `imem` entry point once the package
+is installable.
 
 ## Model Details
 
@@ -78,27 +108,34 @@ pip install -r requirements.txt
 
 ## Project Structure
 
+- `src/cli.py` — `imem` command-line entry point (`add`, `query`, `collection ls/rm`)
 - `src/encoder.py` — `ImageTextEncoder`: model loading, image/text embedding (SigLIP2, MPS/CUDA/CPU)
 - `src/vector_store.py` — `ImageVectorStore`: Qdrant wrapper (local & server mode), de-dup, search
+- `src/indexer.py` — recursive folder discovery + indexing (`index_folders`, `iter_image_paths`)
+- `src/query.py` — text/image query against a collection (`query_images`)
+- `src/catalog.py` — instance-level collection ops (list, count, delete)
+- `src/config.py` — loads `config.yml` (model/app) + `config.ini` (Qdrant) into a frozen `CONFIG`
 - `src/dataloader.py` — test dataset loaders (Olivetti Faces, Caltech-101)
 - `src/utils/visualize.py` — notebook result-grid helper
 - `notebooks/01-poc.ipynb` — local/embedded Qdrant POC (test datasets)
 - `notebooks/00-poc-personal-imgs.ipynb` — server/container Qdrant POC using your own image collection (`docker compose up -d`)
-- `tests/` — pytest smoke tests for the encoder & vector store modules
+- `tests/` — pytest tests for the encoder, vector store, indexer, query & catalog modules
 
 ## Testing
 
-Basic smoke tests cover the encoder pipeline (shapes, normalization, error handling) and the
-Qdrant vector store wrapper (in-memory mode, no server needed):
+Tests cover the encoder pipeline (shapes, normalization, error handling), the Qdrant vector
+store wrapper, and the indexer / query / catalog logic — all against an in-memory Qdrant
+instance, no server needed:
 
 ```bash
 pip install -r requirements.txt
 pytest tests/ -v
 ```
 
-`tests/test_encoder.py` downloads the real SigLIP2 model on first run (network required) —
-it auto-skips if `torch`/`transformers` aren't installed. `tests/test_vector_store.py` runs
-fully offline against an in-memory Qdrant instance.
+`tests/test_encoder.py` downloads the real SigLIP2 model on first run (network required). The
+indexer and query tests run fully offline, using random stand-in embeddings instead of the
+real model; `tests/test_catalog.py` and `tests/test_vector_store.py` don't touch the model at
+all. Model-dependent tests auto-skip if `torch`/`transformers` aren't installed.
 
 ## References
 

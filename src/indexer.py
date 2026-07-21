@@ -15,14 +15,11 @@ Usage:
     store = ImageVectorStore("images", encoder.embedding_dim, host="localhost")
     report = index_folders(["/path/to/photos"], store, encoder)
 
-CLI:
-    python -m src.indexer /path/to/photos [more/folders ...] \
-        [--collection NAME] [--extensions .jpg,.png] [--recreate]
+Driven from the command line via `python -m src.cli add` (see src/cli.py).
 """
 
 from __future__ import annotations
 
-import argparse
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import FrozenSet, List, Optional, Sequence, Union
@@ -101,51 +98,3 @@ def _parse_extensions(raw: Optional[str]) -> FrozenSet[str]:
             continue
         extensions.add(part if part.startswith(".") else f".{part}")
     return frozenset(extensions)
-
-
-def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Recursively index images from folders into Qdrant.")
-    parser.add_argument("folders", nargs="+", help="Folder(s) to scan recursively for images.")
-    parser.add_argument(
-        "--collection",
-        default=CONFIG.qdrant.collection,
-        help=f"Qdrant collection to index into (default: {CONFIG.qdrant.collection}).",
-    )
-    parser.add_argument(
-        "--extensions",
-        default=None,
-        help="Comma-separated file extensions to scan for, e.g. .jpg,.png "
-        f"(default: {','.join(sorted(DEFAULT_EXTENSIONS))}).",
-    )
-    parser.add_argument(
-        "--recreate",
-        action="store_true",
-        help="Delete and recreate the collection instead of adding to it.",
-    )
-    return parser.parse_args()
-
-
-def main() -> None:
-    args = _parse_args()
-    extensions = _parse_extensions(args.extensions)
-
-    encoder = ImageTextEncoder()
-    store = ImageVectorStore(
-        args.collection,
-        encoder.embedding_dim,
-        host=CONFIG.qdrant.host,
-        port=CONFIG.qdrant.port,
-        recreate=args.recreate,
-    )
-
-    report = index_folders(args.folders, store, encoder, extensions=extensions)
-    print(
-        f"Found {report.found}, skipped {report.skipped_existing} (already indexed), "
-        f"indexed {report.indexed}, failed {len(report.failed)}."
-    )
-    for path in report.failed:
-        print(f"  failed: {path}")
-
-
-if __name__ == "__main__":
-    main()
