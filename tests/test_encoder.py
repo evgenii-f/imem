@@ -2,8 +2,8 @@
 Smoke tests for the image/text encoder pipeline (imem/encoder.py).
 
 These load the real SigLIP2 model (auto-downloaded from Hugging Face on
-first run), so they require network access + the ML dependencies from
-requirements.txt. They're intentionally basic: the goal is to catch
+first run), so they require network access + the core dependencies (installed
+with the package). They're intentionally basic: the goal is to catch
 pipeline breakage (wrong shapes, broken normalization, crashes on bad
 input) rather than to assert on retrieval quality.
 

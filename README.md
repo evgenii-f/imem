@@ -44,7 +44,13 @@ iMem uses multimodal embeddings to encode both images and text into a shared emb
 ### Installation
 
 ```bash
-pip install -r requirements.txt
+pip install -e .
+```
+
+This installs the `imem` command. Optional extras pull dev/dataset/notebook tooling:
+
+```bash
+pip install -e ".[dev,datasets,viz,notebook]"
 ```
 
 ### Quick Start (Notebook)
@@ -72,26 +78,25 @@ Qdrant server (`docker compose up -d`).
 **Index** a folder (recursively) into a collection:
 
 ```bash
-python -m imem.cli add ~/Photos --collection personal
+imem add ~/Photos --collection personal
 ```
 
 **Search** by text, or by a reference image (auto-detected from the argument):
 
 ```bash
-python -m imem.cli query "red cat on sofa"
-python -m imem.cli query ~/reference.jpg --collection personal -k 10
+imem query "red cat on sofa"
+imem query ~/reference.jpg --collection personal -k 10
 ```
 
 **Manage collections:**
 
 ```bash
-python -m imem.cli collection ls
-python -m imem.cli collection rm personal -f
+imem collection ls
+imem collection rm personal -f
 ```
 
-Add `--help` to any command for its full flag list. All commands run via
-`python -m imem.cli` today; this becomes a single `imem` entry point once the package
-is installable.
+Add `--help` to any command for its full flag list. The `imem` command is created by
+`pip install`; without installing, `python -m imem.cli <command>` works too.
 
 ## Model Details
 
@@ -128,7 +133,7 @@ store wrapper, and the indexer / query / catalog logic — all against an in-mem
 instance, no server needed:
 
 ```bash
-pip install -r requirements.txt
+pip install -e ".[dev]"
 pytest tests/ -v
 ```
 
