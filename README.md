@@ -72,7 +72,7 @@ Qdrant server (`docker compose up -d`).
 **Index** a folder (recursively) into a collection:
 
 ```bash
-python -m src.indexer ~/Photos --collection personal
+python -m src.cli add ~/Photos --collection personal
 ```
 
 **Search** by text, or by a reference image (auto-detected from the argument):
@@ -89,9 +89,9 @@ python -m src.cli collection ls
 python -m src.cli collection rm personal -f
 ```
 
-Add `--help` to any command for its full flag list. Indexing currently lives under
-`src.indexer`; it will fold into a single `imem` entry point (alongside `query` and
-`collection`) once the package is installable.
+Add `--help` to any command for its full flag list. All commands run via
+`python -m src.cli` today; this becomes a single `imem` entry point once the package
+is installable.
 
 ## Model Details
 
@@ -108,7 +108,7 @@ Add `--help` to any command for its full flag list. Indexing currently lives und
 
 ## Project Structure
 
-- `src/cli.py` — `imem` command-line entry point (`query`, `collection ls/rm`)
+- `src/cli.py` — `imem` command-line entry point (`add`, `query`, `collection ls/rm`)
 - `src/encoder.py` — `ImageTextEncoder`: model loading, image/text embedding (SigLIP2, MPS/CUDA/CPU)
 - `src/vector_store.py` — `ImageVectorStore`: Qdrant wrapper (local & server mode), de-dup, search
 - `src/indexer.py` — recursive folder discovery + indexing (`index_folders`, `iter_image_paths`)

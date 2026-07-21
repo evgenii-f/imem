@@ -1,10 +1,11 @@
 """
 cli.py — command-line entry point for iMem (the `imem` command).
 
-Subcommands wrap the library functions. This chunk implements `query` and
-`collection ls/rm`; indexing (`add`) arrives in a later chunk.
+Subcommands wrap the library functions: `add` (indexing), `query` (search), and
+`collection ls/rm` (management).
 
 Usage:
+    python -m src.cli add ~/Photos --collection personal
     python -m src.cli query "red cat on sofa"
     python -m src.cli query ~/reference.jpg --collection personal -k 10
     python -m src.cli collection ls
@@ -22,14 +23,14 @@ from qdrant_client import QdrantClient
 from .catalog import collection_count, collection_exists, drop_collection, list_collections
 from .config import CONFIG
 from .encoder import ImageTextEncoder
+from .indexer import DEFAULT_EXTENSIONS, _parse_extensions, index_folders
 from .query import query_images
 from .vector_store import ImageVectorStore
 
 
-def _connect(collection: str, embedding_dim: int) -> ImageVectorStore:
+def _connect(collection: str, embedding_dim: int, recreate: bool = False) -> ImageVectorStore:
     """
-    Connects to Qdrant in server mode (host/port from config), matching
-    src/indexer.py so `add` and `query` share the same backend. A unified
+    Connects to Qdrant in server mode (host/port from config). A unified
     connection factory (embedded default + --qdrant-url + env override) is a
     separate upcoming chunk.
     """
@@ -38,6 +39,7 @@ def _connect(collection: str, embedding_dim: int) -> ImageVectorStore:
         embedding_dim,
         host=CONFIG.qdrant.host,
         port=CONFIG.qdrant.port,
+        recreate=recreate,
     )
 
 
@@ -48,6 +50,22 @@ def _connect_client() -> QdrantClient:
     server-mode target as _connect; consolidated in the connection-factory chunk.
     """
     return QdrantClient(host=CONFIG.qdrant.host, port=CONFIG.qdrant.port)
+
+
+def _cmd_add(args: argparse.Namespace) -> int:
+    extensions = _parse_extensions(args.extensions)
+
+    encoder = ImageTextEncoder()
+    store = _connect(args.collection, encoder.embedding_dim, recreate=args.recreate)
+    report = index_folders(args.folders, store, encoder, extensions=extensions)
+
+    print(
+        f"Found {report.found}, skipped {report.skipped_existing} (already indexed), "
+        f"indexed {report.indexed}, failed {len(report.failed)}."
+    )
+    for path in report.failed:
+        print(f"  failed: {path}")
+    return 0
 
 
 def _cmd_query(args: argparse.Namespace) -> int:
@@ -105,6 +123,26 @@ def _cmd_collection_rm(args: argparse.Namespace) -> int:
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="imem", description="Semantic image memory: index and search images.")
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    p_add = subparsers.add_parser("add", help="Index images from folders into a collection.")
+    p_add.add_argument("folders", nargs="+", help="Folder(s) to scan recursively for images.")
+    p_add.add_argument(
+        "--collection",
+        default=CONFIG.qdrant.collection,
+        help=f"Collection to index into (default: {CONFIG.qdrant.collection}).",
+    )
+    p_add.add_argument(
+        "--extensions",
+        default=None,
+        help="Comma-separated file extensions to scan for, e.g. .jpg,.png "
+        f"(default: {','.join(sorted(DEFAULT_EXTENSIONS))}).",
+    )
+    p_add.add_argument(
+        "--recreate",
+        action="store_true",
+        help="Delete and recreate the collection instead of adding to it.",
+    )
+    p_add.set_defaults(func=_cmd_add)
 
     p_query = subparsers.add_parser("query", help="Search an indexed collection by text or image.")
     p_query.add_argument("query", help="Text query, or path to a reference image.")
