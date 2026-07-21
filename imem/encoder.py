@@ -72,35 +72,45 @@ class ImageTextEncoder:
         embeddings = []
         valid_paths_all: List[str] = []
 
-        batch_starts = range(0, len(image_paths), batch_size)
-        for i in tqdm(
-            batch_starts,
+        n = len(image_paths)
+        n_batches = (n + batch_size - 1) // batch_size
+        # Count progress in images (the intuitive unit); show the batch index as
+        # a postfix so both are visible: "2272/132276 [.. img/s, batch=71/4134]".
+        with tqdm(
+            total=n,
             desc="Encoding images",
-            unit="batch",
-            disable=not show_progress or len(image_paths) <= batch_size,
-        ):
-            batch_paths = image_paths[i : i + batch_size]
+            unit="img",
+            disable=not show_progress or n <= batch_size,
+        ) as pbar:
+            for batch_idx, start in enumerate(range(0, n, batch_size), 1):
+                batch_paths = image_paths[start : start + batch_size]
 
-            images = []
-            valid_paths = []
-            for path in batch_paths:
-                try:
-                    img = Image.open(path).convert("RGB")
-                    images.append(img)
-                    valid_paths.append(str(path))
-                except Exception as e:
-                    print(f"Failed to load {path}: {e}")
+                images = []
+                valid_paths = []
+                for path in batch_paths:
+                    try:
+                        img = Image.open(path).convert("RGB")
+                        images.append(img)
+                        valid_paths.append(str(path))
+                    except Exception as e:
+                        print(f"Failed to load {path}: {e}")
 
-            if not images:
-                continue
+                if images:
+                    inputs = self.processor(images=images, return_tensors="pt", padding=True).to(self.device)
+                    with torch.no_grad():
+                        outputs = self.model.get_image_features(**inputs)
 
-            inputs = self.processor(images=images, return_tensors="pt", padding=True).to(self.device)
-            with torch.no_grad():
-                outputs = self.model.get_image_features(**inputs)
+                    img_emb = l2_normalize(outputs.pooler_output)
+                    embeddings.append(img_emb.cpu().numpy())
+                    valid_paths_all.extend(valid_paths)
 
-            img_emb = l2_normalize(outputs.pooler_output)
-            embeddings.append(img_emb.cpu().numpy())
-            valid_paths_all.extend(valid_paths)
+                elapsed = pbar.format_dict["elapsed"]
+                batch_rate = batch_idx / elapsed if elapsed else 0.0
+                pbar.set_postfix(
+                    {"batch": f"{batch_idx}/{n_batches}", "batch/s": f"{batch_rate:.2f}"},
+                    refresh=False,
+                )
+                pbar.update(len(batch_paths))
 
         if not embeddings:
             return np.array([]), []
