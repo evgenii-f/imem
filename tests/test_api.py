@@ -238,6 +238,20 @@ def test_image_missing_file_404(seeded, tmp_path):
     assert resp.status_code == 404
 
 
+def test_image_unreadable_file_403(seeded, tmp_path):
+    # OS-denied read (here via chmod 000) surfaces as a clean 403, not a 500.
+    store, _, _ = seeded
+    blocked = tmp_path / "blocked.png"
+    Image.new("RGB", (16, 16), color=(5, 5, 5)).save(blocked)
+    blocked.chmod(0o000)
+    try:
+        with _client(store, FakeEncoder()) as c:
+            resp = c.get("/image", params={"path": str(blocked)})
+        assert resp.status_code == 403
+    finally:
+        blocked.chmod(0o644)
+
+
 def test_image_relative_path_resolves_against_cwd(seeded, tmp_path, monkeypatch):
     # With base_dir unset, a relative stored path resolves against the server CWD.
     store, _, _ = seeded

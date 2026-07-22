@@ -115,10 +115,21 @@ def resolve_stored_path(path: str) -> Path:
 
 
 def _validate_image_path(path: str) -> Path:
-    """Constrain /image to real image files (an arbitrary-file-read guard)."""
+    """Constrain /image to real, readable image files (an arbitrary-file-read
+    guard). Returns a clean 403 rather than a 500 when the OS denies the read —
+    e.g. macOS TCC protecting ~/Downloads, ~/Desktop, ~/Documents."""
     p = resolve_stored_path(path)
     if p.suffix.lower() not in CONFIG.indexer.extensions or not p.is_file():
         raise HTTPException(status_code=404, detail="Image not found")
+    try:
+        with open(p, "rb"):
+            pass
+    except OSError as e:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Image not readable ({e.strerror or e}). On macOS, grant the "
+            f"server access to this folder (Privacy & Security → Files and Folders).",
+        )
     return p
 
 
@@ -228,11 +239,14 @@ def create_app() -> FastAPI:
         p = _validate_image_path(path)
 
         if thumb is not None:
-            with Image.open(p) as img:
-                img = img.convert("RGB")
-                img.thumbnail((thumb, thumb))
-                buf = io.BytesIO()
-                img.save(buf, format="JPEG", quality=85)
+            try:
+                with Image.open(p) as img:
+                    img = img.convert("RGB")
+                    img.thumbnail((thumb, thumb))
+                    buf = io.BytesIO()
+                    img.save(buf, format="JPEG", quality=85)
+            except OSError as e:
+                raise HTTPException(status_code=415, detail=f"Cannot render image: {e}")
             return Response(content=buf.getvalue(), media_type="image/jpeg")
 
         return FileResponse(
