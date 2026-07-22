@@ -1,0 +1,4 @@
+/* Mantine ships its own reset/base styles; keep this minimal. */
+body {
+  margin: 0;
+}
