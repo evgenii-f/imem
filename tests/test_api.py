@@ -236,3 +236,31 @@ def test_image_missing_file_404(seeded, tmp_path):
     with _client(store, FakeEncoder()) as c:
         resp = c.get("/image", params={"path": str(tmp_path / "ghost.png")})
     assert resp.status_code == 404
+
+
+def test_image_relative_path_resolves_against_cwd(seeded, tmp_path, monkeypatch):
+    # With base_dir unset, a relative stored path resolves against the server CWD.
+    store, _, _ = seeded
+    Image.new("RGB", (16, 16), color=(1, 2, 3)).save(tmp_path / "rel.png")
+    monkeypatch.chdir(tmp_path)
+    with _client(store, FakeEncoder()) as c:
+        resp = c.get("/image", params={"path": "rel.png"})
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("image/")
+
+
+# ---- resolve_stored_path ----
+
+def test_resolve_stored_path_absolute_passthrough():
+    from imem.api.app import resolve_stored_path
+
+    assert resolve_stored_path("/abs/photo.jpg") == Path("/abs/photo.jpg")
+
+
+def test_resolve_stored_path_relative_joins_base_dir(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    import imem.api.app as appmod
+
+    monkeypatch.setattr(appmod, "CONFIG", SimpleNamespace(api=SimpleNamespace(base_dir=str(tmp_path))))
+    assert appmod.resolve_stored_path("sub/photo.jpg") == tmp_path / "sub" / "photo.jpg"

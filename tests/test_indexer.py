@@ -117,6 +117,15 @@ def test_iter_image_paths_empty_folder_returns_empty_list(tmp_path: Path):
     assert iter_image_paths([str(tmp_path)]) == []
 
 
+def test_iter_image_paths_are_absolute_for_relative_folder(tmp_path: Path, monkeypatch):
+    # Indexing from a relative folder arg must still store absolute paths, so the
+    # collection is portable regardless of the CWD it was indexed from.
+    _write_image(tmp_path / "a.png")
+    monkeypatch.chdir(tmp_path)
+    found = iter_image_paths(["."])
+    assert found and all(Path(p).is_absolute() for p in found)
+
+
 # ---- index_folders ----
 
 def test_index_folders_indexes_new_images(store: ImageVectorStore, tmp_path: Path):

@@ -40,12 +40,17 @@ def iter_image_paths(
     Recursively walks each folder and returns the paths of files whose
     extension (case-insensitive) is in `extensions`, deduplicated and sorted
     for a stable order across runs.
+
+    Paths are made absolute (via ``Path.absolute()`` — no symlink resolution)
+    so a collection is portable regardless of the working directory it was
+    indexed from. The API serves images by these stored paths, so relative
+    paths would only resolve when the server ran from the indexing directory.
     """
     found = set()
     for folder in folders:
         for path in Path(folder).rglob("*"):
             if path.is_file() and path.suffix.lower() in extensions:
-                found.add(str(path))
+                found.add(str(path.absolute()))
     return sorted(found)
 
 

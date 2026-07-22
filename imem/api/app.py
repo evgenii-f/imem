@@ -100,9 +100,23 @@ def _require_collection(client: QdrantClient, collection: str) -> None:
         raise HTTPException(status_code=404, detail=f"Collection not found: {collection!r}")
 
 
+def resolve_stored_path(path: str) -> Path:
+    """Map a path stored in Qdrant to a filesystem path.
+
+    Current indexing stores absolute paths (used as-is). Legacy collections
+    stored paths relative to the indexing directory; those are joined with
+    CONFIG.api.base_dir when set, else made absolute against the server CWD.
+    """
+    p = Path(path)
+    if p.is_absolute():
+        return p
+    base = CONFIG.api.base_dir
+    return Path(base) / p if base else p.absolute()
+
+
 def _validate_image_path(path: str) -> Path:
     """Constrain /image to real image files (an arbitrary-file-read guard)."""
-    p = Path(path)
+    p = resolve_stored_path(path)
     if p.suffix.lower() not in CONFIG.indexer.extensions or not p.is_file():
         raise HTTPException(status_code=404, detail="Image not found")
     return p

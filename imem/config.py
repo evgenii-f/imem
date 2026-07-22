@@ -59,12 +59,19 @@ class QdrantConfig:
 
 
 @dataclass(frozen=True)
+class ApiConfig:
+    # Base dir for resolving relative stored image paths; "" = use CWD.
+    base_dir: str
+
+
+@dataclass(frozen=True)
 class Config:
     encoder: EncoderConfig
     vector_store: VectorStoreConfig
     dataset: DatasetConfig
     indexer: IndexerConfig
     qdrant: QdrantConfig
+    api: ApiConfig
 
 
 def _load() -> Config:
@@ -74,6 +81,7 @@ def _load() -> Config:
     ini = configparser.ConfigParser()
     ini.read_string(resources.joinpath("config.ini").read_text(encoding="utf-8"))
     q = ini["qdrant"]
+    api_base_dir = ini.get("api", "base_dir", fallback="").strip() if ini.has_section("api") else ""
 
     return Config(
         encoder=EncoderConfig(
@@ -101,6 +109,7 @@ def _load() -> Config:
             collection=q.get("collection"),
             storage=q.get("storage"),
         ),
+        api=ApiConfig(base_dir=api_base_dir),
     )
 
 
