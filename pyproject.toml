@@ -26,7 +26,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0.0"]
+dev = ["pytest>=7.0.0", "httpx2>=2.0.0"]  # httpx2 backs starlette's TestClient
+api = ["fastapi>=0.110.0", "uvicorn[standard]>=0.29.0", "python-multipart>=0.0.9"]
 datasets = ["torchvision>=0.18.0", "scikit-learn>=1.4.0"]  # tools/dataloader.py
 viz = ["matplotlib>=3.8.0"]                                 # tools/visualize.py
 notebook = ["ipykernel>=6.30.0"]
