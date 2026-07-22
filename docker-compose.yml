@@ -11,3 +11,17 @@ services:
       - ./qdrant_storage:/qdrant/storage
     restart: unless-stopped
 
+  # Static SPA behind nginx. The FastAPI backend runs on the host (needs the
+  # host GPU/MPS and read access to arbitrary indexed image paths), so it is
+  # NOT a compose service — start it with `imem serve`. The browser reaches it
+  # at VITE_API_BASE_URL (baked in at build time, default http://localhost:8000).
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+    container_name: imem_frontend
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
