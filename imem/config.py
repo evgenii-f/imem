@@ -16,6 +16,7 @@ the rest of the codebase never hardcodes these values.
 from __future__ import annotations
 
 import configparser
+import os
 from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
@@ -81,7 +82,12 @@ def _load() -> Config:
     ini = configparser.ConfigParser()
     ini.read_string(resources.joinpath("config.ini").read_text(encoding="utf-8"))
     q = ini["qdrant"]
-    api_base_dir = ini.get("api", "base_dir", fallback="").strip() if ini.has_section("api") else ""
+    # base_dir is machine-specific, so allow an env override (IMEM_BASE_DIR)
+    # that wins over the tracked config.ini value.
+    api_base_dir = os.environ.get("IMEM_BASE_DIR")
+    if api_base_dir is None:
+        api_base_dir = ini.get("api", "base_dir", fallback="") if ini.has_section("api") else ""
+    api_base_dir = api_base_dir.strip()
 
     return Config(
         encoder=EncoderConfig(
