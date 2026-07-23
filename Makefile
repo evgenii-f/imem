@@ -19,7 +19,7 @@ PYTHON ?= python
 IMEM_BASE_DIR ?= $(HOME)
 
 .DEFAULT_GOAL := help
-.PHONY: help install build up serve dev down test
+.PHONY: help install build up serve dev stop down test
 
 help: ## Show the available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -38,6 +38,9 @@ serve: ## Run the backend API on the host (foreground)
 	IMEM_BASE_DIR="$(IMEM_BASE_DIR)" imem serve
 
 dev: up install serve ## Bring the whole stack up, install, then run the backend
+
+stop: ## Pause the containers (keep them; resume with `make up`)
+	docker compose stop
 
 down: ## Stop and remove the containers
 	docker compose down
