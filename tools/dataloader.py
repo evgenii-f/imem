@@ -11,7 +11,7 @@ Supported test datasets:
 Downloaded/generated data is written under `data/` which is git-ignored.
 
 Usage:
-    from src.dataloader import load_olivetti_faces, load_caltech101, ImageRecord
+    from tools.dataloader import load_olivetti_faces, load_caltech101, ImageRecord
 
     records = load_olivetti_faces()
     records = load_caltech101()
@@ -29,7 +29,7 @@ from typing import List, Optional
 
 from tqdm import tqdm
 
-from .config import CONFIG
+from imem.config import CONFIG
 
 # Root directory for all locally materialized/downloaded test data.
 # Git-ignored via the `data/` entry in .gitignore. Configured in config.yml.

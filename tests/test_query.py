@@ -1,5 +1,5 @@
 """
-Integration tests for the query pipeline (src/query.py).
+Integration tests for the query pipeline (imem/query.py).
 
 Uses Qdrant's in-memory mode and a FakeEncoder returning controlled
 embeddings instead of loading a real model, so these run fast without
@@ -24,8 +24,8 @@ pytest.importorskip("transformers")
 pytest.importorskip("qdrant_client")
 pytest.importorskip("blake3")
 
-from src.query import looks_like_image_path, query_images  # noqa: E402
-from src.vector_store import ImageVectorStore  # noqa: E402
+from imem.query import looks_like_image_path, query_images  # noqa: E402
+from imem.vector_store import ImageVectorStore  # noqa: E402
 
 EMBEDDING_DIM = 8
 

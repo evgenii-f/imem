@@ -1,5 +1,5 @@
 """
-Smoke tests for the Qdrant vector store wrapper (src/vector_store.py).
+Smoke tests for the Qdrant vector store wrapper (imem/vector_store.py).
 
 Uses Qdrant's in-memory mode (`path=":memory:"`) so these tests are fast,
 require no Docker/server, and don't touch disk (beyond the tmp image files
@@ -24,7 +24,7 @@ from PIL import Image
 pytest.importorskip("qdrant_client")
 pytest.importorskip("blake3")
 
-from src.vector_store import ImageVectorStore, file_hash  # noqa: E402
+from imem.vector_store import ImageVectorStore, file_hash  # noqa: E402
 
 EMBEDDING_DIM = 8
 

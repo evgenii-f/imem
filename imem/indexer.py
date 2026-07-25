@@ -7,15 +7,15 @@ here, de-duplication and payload (path + file_hash) handled by
 ImageVectorStore, embedding computed by ImageTextEncoder.
 
 Usage:
-    from src.indexer import index_folders
-    from src.encoder import ImageTextEncoder
-    from src.vector_store import ImageVectorStore
+    from imem.indexer import index_folders
+    from imem.encoder import ImageTextEncoder
+    from imem.vector_store import ImageVectorStore
 
     encoder = ImageTextEncoder()
     store = ImageVectorStore("images", encoder.embedding_dim, host="localhost")
     report = index_folders(["/path/to/photos"], store, encoder)
 
-Driven from the command line via `python -m src.cli add` (see src/cli.py).
+Driven from the command line via `python -m imem.cli add` (see imem/cli.py).
 """
 
 from __future__ import annotations
@@ -29,6 +29,7 @@ from .encoder import ImageTextEncoder
 from .vector_store import ImageVectorStore
 
 DEFAULT_EXTENSIONS = CONFIG.indexer.extensions
+DEFAULT_CHUNK_SIZE = CONFIG.indexer.chunk_size
 
 
 def iter_image_paths(
@@ -39,12 +40,17 @@ def iter_image_paths(
     Recursively walks each folder and returns the paths of files whose
     extension (case-insensitive) is in `extensions`, deduplicated and sorted
     for a stable order across runs.
+
+    Paths are made absolute (via ``Path.absolute()`` — no symlink resolution)
+    so a collection is portable regardless of the working directory it was
+    indexed from. The API serves images by these stored paths, so relative
+    paths would only resolve when the server ran from the indexing directory.
     """
     found = set()
     for folder in folders:
         for path in Path(folder).rglob("*"):
             if path.is_file() and path.suffix.lower() in extensions:
-                found.add(str(path))
+                found.add(str(path.absolute()))
     return sorted(found)
 
 
@@ -63,21 +69,30 @@ def index_folders(
     store: ImageVectorStore,
     encoder: ImageTextEncoder,
     extensions: FrozenSet[str] = DEFAULT_EXTENSIONS,
+    chunk_size: int = DEFAULT_CHUNK_SIZE,
 ) -> IndexReport:
     """
     Discovers images under `folders`, skips paths already present in `store`,
-    encodes and upserts the rest. Returns a report of what happened.
+    then encodes and upserts the rest in chunks of `chunk_size`.
+
+    Each chunk is encoded and immediately upserted before the next is read, so
+    the collection is populated incrementally (an interrupted run keeps every
+    completed chunk) and peak memory stays bounded to one chunk of embeddings.
     """
     paths = iter_image_paths(folders, extensions)
     new_paths = store.filter_new_paths(paths)
 
     indexed = 0
     failed: List[str] = []
-    if new_paths:
-        embeddings, valid_paths = encoder.encode_images(new_paths)
-        failed = [p for p in new_paths if p not in set(valid_paths)]
+    n_chunks = (len(new_paths) + chunk_size - 1) // chunk_size
+    for chunk_idx, start in enumerate(range(0, len(new_paths), chunk_size), 1):
+        chunk = new_paths[start : start + chunk_size]
+        desc = "Encoding images" if n_chunks == 1 else f"Encoding images [chunk {chunk_idx}/{n_chunks}]"
+
+        embeddings, valid_paths = encoder.encode_images(chunk, desc=desc)
+        failed.extend(p for p in chunk if p not in set(valid_paths))
         if valid_paths:
-            indexed = store.upsert_images(embeddings, valid_paths)
+            indexed += store.upsert_images(embeddings, valid_paths, show_progress=False)
 
     return IndexReport(
         found=len(paths),

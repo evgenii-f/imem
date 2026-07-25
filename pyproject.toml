@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=77.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "imem"
+version = "0.1.0"
+description = "Semantic image memory: index and search image collections by text or image (SigLIP2 + Qdrant)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "Evgenii Fedorov" }]
+
+# Runtime dependencies for the `imem` CLI. Dataset loaders and notebook
+# visualization tooling live under tools/ (not packaged) and pull their heavier
+# deps via the optional extras below.
+dependencies = [
+    "torch>=2.0.0",
+    "transformers>=4.40.0",
+    "Pillow>=10.0.0",
+    "qdrant-client>=1.18.0",
+    "blake3>=0.4.0",
+    "numpy>=1.24.0",
+    "PyYAML>=6.0",
+    "tqdm>=4.66.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0.0", "httpx2>=2.0.0"]  # httpx2 backs starlette's TestClient
+api = ["fastapi>=0.110.0", "uvicorn[standard]>=0.29.0", "python-multipart>=0.0.9"]
+datasets = ["torchvision>=0.18.0", "scikit-learn>=1.4.0"]  # tools/dataloader.py
+viz = ["matplotlib>=3.8.0"]                                 # tools/visualize.py
+notebook = ["ipykernel>=6.30.0"]
+
+[project.scripts]
+imem = "imem.cli:main"
+
+[tool.setuptools.packages.find]
+# Ship only the imem package; tools/, tests/, notebooks/ stay out of the wheel.
+include = ["imem*"]
+
+[tool.setuptools.package-data]
+# config.yml / config.ini are loaded via importlib.resources, so they must ship
+# inside the wheel.
+imem = ["*.yml", "*.ini"]

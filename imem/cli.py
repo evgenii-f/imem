@@ -5,11 +5,11 @@ Subcommands wrap the library functions: `add` (indexing), `query` (search), and
 `collection ls/rm` (management).
 
 Usage:
-    python -m src.cli add ~/Photos --collection personal
-    python -m src.cli query "red cat on sofa"
-    python -m src.cli query ~/reference.jpg --collection personal -k 10
-    python -m src.cli collection ls
-    python -m src.cli collection rm old_collection
+    python -m imem.cli add ~/Photos --collection personal
+    python -m imem.cli query "red cat on sofa"
+    python -m imem.cli query ~/reference.jpg --collection personal -k 10
+    python -m imem.cli collection ls
+    python -m imem.cli collection rm old_collection
 """
 
 from __future__ import annotations
@@ -120,6 +120,22 @@ def _cmd_collection_rm(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_serve(args: argparse.Namespace) -> int:
+    # Lazy import so the base CLI doesn't require the `api` extra to be installed.
+    try:
+        import uvicorn
+    except ImportError:
+        print(
+            "error: the API server needs extra deps. Install with: pip install 'imem[api]'",
+            file=sys.stderr,
+        )
+        return 1
+
+    # Pass the import string (not the app object) so --reload can work.
+    uvicorn.run("imem.api.app:app", host=args.host, port=args.port, reload=args.reload)
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="imem", description="Semantic image memory: index and search images.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -175,6 +191,14 @@ def _build_parser() -> argparse.ArgumentParser:
     p_rm.add_argument("name", help="Collection to delete.")
     p_rm.add_argument("-f", "--yes", action="store_true", help="Skip the confirmation prompt.")
     p_rm.set_defaults(func=_cmd_collection_rm)
+
+    p_serve = subparsers.add_parser("serve", help="Run the HTTP API for the frontend.")
+    p_serve.add_argument("--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1).")
+    p_serve.add_argument("--port", type=int, default=8000, help="Bind port (default: 8000).")
+    p_serve.add_argument(
+        "--reload", action="store_true", help="Auto-reload on code changes (dev)."
+    )
+    p_serve.set_defaults(func=_cmd_serve)
 
     return parser
 

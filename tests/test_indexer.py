@@ -1,5 +1,5 @@
 """
-Integration tests for the indexing pipeline (src/indexer.py).
+Integration tests for the indexing pipeline (imem/indexer.py).
 
 Uses Qdrant's in-memory mode and a FakeEncoder (random embeddings) instead of
 loading a real model, so these run fast without network/GPU access — same
@@ -25,8 +25,8 @@ pytest.importorskip("transformers")
 pytest.importorskip("qdrant_client")
 pytest.importorskip("blake3")
 
-from src.indexer import IndexReport, _parse_extensions, index_folders, iter_image_paths  # noqa: E402
-from src.vector_store import ImageVectorStore  # noqa: E402
+from imem.indexer import IndexReport, _parse_extensions, index_folders, iter_image_paths  # noqa: E402
+from imem.vector_store import ImageVectorStore  # noqa: E402
 
 EMBEDDING_DIM = 8
 
@@ -39,10 +39,13 @@ class FakeEncoder:
     def __init__(self, drop_paths: Sequence[str] = ()):
         # Paths the "encoder" pretends failed to load, to exercise failure reporting.
         self._drop_paths = set(drop_paths)
+        # Number of encode_images() calls, to assert chunked streaming.
+        self.calls = 0
 
     def encode_images(
         self, image_paths: Sequence[str], **kwargs
     ) -> Tuple[np.ndarray, List[str]]:
+        self.calls += 1
         valid_paths = [p for p in image_paths if p not in self._drop_paths]
         embeddings = np.random.randn(len(valid_paths), EMBEDDING_DIM).astype(np.float32)
         return embeddings, valid_paths
@@ -114,6 +117,15 @@ def test_iter_image_paths_empty_folder_returns_empty_list(tmp_path: Path):
     assert iter_image_paths([str(tmp_path)]) == []
 
 
+def test_iter_image_paths_are_absolute_for_relative_folder(tmp_path: Path, monkeypatch):
+    # Indexing from a relative folder arg must still store absolute paths, so the
+    # collection is portable regardless of the CWD it was indexed from.
+    _write_image(tmp_path / "a.png")
+    monkeypatch.chdir(tmp_path)
+    found = iter_image_paths(["."])
+    assert found and all(Path(p).is_absolute() for p in found)
+
+
 # ---- index_folders ----
 
 def test_index_folders_indexes_new_images(store: ImageVectorStore, tmp_path: Path):
@@ -124,6 +136,29 @@ def test_index_folders_indexes_new_images(store: ImageVectorStore, tmp_path: Pat
 
     assert report == IndexReport(found=2, skipped_existing=0, indexed=2, failed=[])
     assert store.count() == 2
+
+
+def test_index_folders_streams_in_chunks(store: ImageVectorStore, tmp_path: Path):
+    # 5 images with chunk_size=2 -> 3 encode+upsert rounds, all persisted.
+    for i in range(5):
+        _write_image(tmp_path / f"c_{i}.png", color=(i, i * 2, i * 3))
+    encoder = FakeEncoder()
+
+    report = index_folders([str(tmp_path)], store, encoder, chunk_size=2)
+
+    assert encoder.calls == 3  # ceil(5 / 2)
+    assert report.indexed == 5
+    assert store.count() == 5
+
+
+def test_index_folders_single_chunk_when_under_chunk_size(store: ImageVectorStore, tmp_path: Path):
+    _write_image(tmp_path / "a.png")
+    _write_image(tmp_path / "b.png", color=(9, 9, 9))
+    encoder = FakeEncoder()
+
+    index_folders([str(tmp_path)], store, encoder, chunk_size=100)
+
+    assert encoder.calls == 1
 
 
 def test_index_folders_skips_already_indexed_paths(store: ImageVectorStore, tmp_path: Path):
@@ -171,7 +206,7 @@ def test_index_folders_no_images_found(store: ImageVectorStore, tmp_path: Path):
 # ---- _parse_extensions ----
 
 def test_parse_extensions_none_returns_default():
-    from src.indexer import DEFAULT_EXTENSIONS
+    from imem.indexer import DEFAULT_EXTENSIONS
 
     assert _parse_extensions(None) == DEFAULT_EXTENSIONS
 

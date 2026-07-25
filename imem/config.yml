@@ -1,5 +1,5 @@
 # iMem application/model constants.
-# Infra/connection settings live in config.ini; loaded together by src/config.py.
+# Infra/connection settings live in config.ini; loaded together by imem/config.py.
 
 encoder:
   # Hugging Face model id for the dual encoder (auto-downloaded on first use).
@@ -20,6 +20,9 @@ dataset:
   data_dir: data
 
 indexer:
+  # Images encoded + upserted per round before persisting to Qdrant. Smaller =
+  # more frequent writes (less lost on interrupt), more upsert round-trips.
+  chunk_size: 512
   # File extensions treated as images during recursive folder scans (case-insensitive).
   extensions:
     - .jpg

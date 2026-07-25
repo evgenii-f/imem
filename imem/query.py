@@ -4,7 +4,7 @@ query.py — text/image query against an indexed collection.
 Encodes a query (either free text or a reference image) into the shared
 SigLIP embedding space and returns the nearest indexed image paths. Pure
 orchestration over ImageTextEncoder + ImageVectorStore, mirroring
-indexer.index_folders — the CLI (src/cli.py) wires argument parsing on top.
+indexer.index_folders — the CLI (imem/cli.py) wires argument parsing on top.
 """
 
 from __future__ import annotations

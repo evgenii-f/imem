@@ -232,40 +232,52 @@ class ImageVectorStore:
             )
 
         total_written = 0
-        batch_starts = range(0, len(paths), batch_size)
-        for start in tqdm(
-            batch_starts,
+        n = len(paths)
+        n_batches = (n + batch_size - 1) // batch_size
+        # Progress in images with the batch index as a postfix, mirroring
+        # ImageTextEncoder.encode_images.
+        with tqdm(
+            total=n,
             desc="Upserting images",
-            unit="batch",
-            disable=not show_progress or len(paths) <= batch_size,
-        ):
-            end = start + batch_size
-            batch_embeddings = embeddings[start:end]
-            batch_paths = paths[start:end]
+            unit="img",
+            disable=not show_progress or n <= batch_size,
+        ) as pbar:
+            for batch_idx, start in enumerate(range(0, n, batch_size), 1):
+                end = start + batch_size
+                batch_embeddings = embeddings[start:end]
+                batch_paths = paths[start:end]
 
-            points = []
-            for i, path in enumerate(batch_paths):
-                # Hash the file bytes for the payload. Skip unreadable files
-                # rather than aborting the whole batch.
-                try:
-                    digest = file_hash(path)
-                except Exception as e:
-                    print(f"Failed to hash {path}: {e}")
-                    continue
-                points.append(
-                    PointStruct(
-                        id=point_id_from_path(path),
-                        vector=batch_embeddings[i].tolist(),
-                        payload={PATH_FIELD: path, FILE_HASH_FIELD: digest},
+                points = []
+                for i, path in enumerate(batch_paths):
+                    # Hash the file bytes for the payload. Skip unreadable files
+                    # rather than aborting the whole batch.
+                    try:
+                        digest = file_hash(path)
+                    except Exception as e:
+                        print(f"Failed to hash {path}: {e}")
+                        continue
+                    points.append(
+                        PointStruct(
+                            id=point_id_from_path(path),
+                            vector=batch_embeddings[i].tolist(),
+                            payload={PATH_FIELD: path, FILE_HASH_FIELD: digest},
+                        )
                     )
-                )
 
-            if points:
-                self.client.upsert(
-                    collection_name=self.collection_name,
-                    points=points,
+                if points:
+                    self.client.upsert(
+                        collection_name=self.collection_name,
+                        points=points,
+                    )
+                    total_written += len(points)
+
+                elapsed = pbar.format_dict["elapsed"]
+                batch_rate = batch_idx / elapsed if elapsed else 0.0
+                pbar.set_postfix(
+                    {"batch": f"{batch_idx}/{n_batches}", "batch/s": f"{batch_rate:.2f}"},
+                    refresh=False,
                 )
-                total_written += len(points)
+                pbar.update(len(batch_paths))
 
         return total_written
 
