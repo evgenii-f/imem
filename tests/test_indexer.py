@@ -14,9 +14,7 @@ Run with: pytest tests/test_indexer.py -v
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Sequence, Tuple
 
-import numpy as np
 import pytest
 from PIL import Image
 
@@ -25,30 +23,9 @@ pytest.importorskip("transformers")
 pytest.importorskip("qdrant_client")
 pytest.importorskip("blake3")
 
+from conftest import EMBEDDING_DIM, FakeEncoder  # noqa: E402
 from imem.indexer import IndexReport, _parse_extensions, index_folders, iter_image_paths  # noqa: E402
 from imem.vector_store import ImageVectorStore  # noqa: E402
-
-EMBEDDING_DIM = 8
-
-
-class FakeEncoder:
-    """Stands in for ImageTextEncoder: returns random embeddings, no model/network needed."""
-
-    embedding_dim = EMBEDDING_DIM
-
-    def __init__(self, drop_paths: Sequence[str] = ()):
-        # Paths the "encoder" pretends failed to load, to exercise failure reporting.
-        self._drop_paths = set(drop_paths)
-        # Number of encode_images() calls, to assert chunked streaming.
-        self.calls = 0
-
-    def encode_images(
-        self, image_paths: Sequence[str], **kwargs
-    ) -> Tuple[np.ndarray, List[str]]:
-        self.calls += 1
-        valid_paths = [p for p in image_paths if p not in self._drop_paths]
-        embeddings = np.random.randn(len(valid_paths), EMBEDDING_DIM).astype(np.float32)
-        return embeddings, valid_paths
 
 
 @pytest.fixture
