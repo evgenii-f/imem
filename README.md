@@ -9,29 +9,45 @@ iMem uses multimodal embeddings to encode both images and text into a shared emb
 ### Architecture
 
 ```
-┌─────────────────────┐
-│  Image Collection   │
-│  (JPEG/PNG files)   │
-└──────────┬──────────┘
-           │
-           ▼
-┌─────────────────────┐         ┌──────────────────┐
-│       Encoder       │────────▶│  Qdrant VectorDB │
-└─────────────────────┘         └──────────────────┘
-           △
-           │
-    ┌──────┴──────┐
-    │             │
-┌───────┐   ┌─────────┐
-│ Text  │   │ Image   │
-│Query  │   │Query    │
-└───────┘   └─────────┘
+   ┌──────────────┐     ┌──────────────────────┐
+   │   Web UI     │     │         CLI          │
+   │  (React,     │     │  imem add            │
+   │   nginx)     │     │  imem query          │
+   └──────┬───────┘     │  imem collection     │
+          │ HTTP        └───────────┬──────────┘
+          ▼                         │  
+   ┌──────────────┐                 │
+   │   FastAPI    │                 │
+   │ `imem serve` │                 │
+   └──────┬───────┘                 │
+          └───────────┬─────────────┘
+                      ▼
+        ┌────────────────────────────┐
+        │  imem package              │
+        │  query · catalog · index   │
+        └───────┬────────────┬───────┘
+                │            │
+         encode ▼            ▼ upsert / similarity search
+      ┌──────────────┐   ┌──────────────────┐
+      │   Encoder    │──▶│  Qdrant VectorDB │
+      │  (SigLIP2)   │   │                  │
+      └──────┬───────┘   └──────────────────┘
+             ▲ index
+      ┌──────┴───────┐
+      │ Image files  │
+      │ (JPEG/PNG)   │
+      └──────────────┘
+
+   Runtime:  Docker → Web UI · Qdrant      Host → FastAPI · CLI · Encoder
 ```
 
 **Phase 1 (done):** Jupyter notebook POC for indexing and retrieval  
 **Phase 2 (done):** Modular pipeline + command-line interface — indexing, text/image search, collection management  
-**Phase 3 (current):** Local install — pip-installable `imem`, embedded Qdrant by default (no server required)  
-**Phase 4 (planned):** Dockerized web frontend + FastAPI backend over the same library (Qdrant as a server)  
+**Phase 3 (done):** Local install — pip-installable `imem`, embedded Qdrant by default (no server required)  
+**Phase 4 (done):** Dockerized React web frontend + FastAPI backend (`imem serve`) over the same library  
+**Phase 5 (planned):** Advanced querying — image metadata indexed at encode time, exact/structured filters over it, and multi-modal (text + image) queries  
+**Phase 6 (planned):** Manage collections & index from the web UI — create/delete collections, add folders, live indexing progress  
+**Phase 7 (planned):** Saved queries — store a reference (e.g. a face) to re-run later, with match alerts down the line  
 
 ## Setup
 
@@ -95,8 +111,52 @@ imem collection ls
 imem collection rm personal -f
 ```
 
+**Serve** the HTTP API used by the web frontend (see *Web app* below):
+
+```bash
+imem serve            # http://127.0.0.1:8000
+```
+
 Add `--help` to any command for its full flag list. The `imem` command is created by
 `pip install`; without installing, `python -m imem.cli <command>` works too.
+
+## Web app
+
+A React single-page UI to search a collection by **text** or **image** (drag,
+paste, or file picker), with a results grid that links each hit back to the file
+on disk (open, download, copy path).
+
+The stack spans two runtimes: **Qdrant and the frontend run in Docker**, while
+the **FastAPI backend runs on the host** — it needs the host GPU/MPS and read
+access to your indexed image files, so it isn't containerized. One command
+brings up everything:
+
+```bash
+make dev        # docker compose up -d  →  pip install  →  imem serve
+```
+
+Then open http://localhost:8080. Container ports are configurable via a root
+`.env` (see `.env.example`).
+
+### Make targets
+
+| Target | What it does |
+|--------|--------------|
+| `make dev` | Whole stack: `up` → `install` → `serve` |
+| `make up` | Start the Qdrant + frontend containers |
+| `make serve` | Run the backend API on the host (foreground) |
+| `make install` | Install the package (`.[api,dev]`) into the active env |
+| `make stop` | Pause the containers (resume with `make up`) |
+| `make down` | Stop and remove the containers |
+| `make build` | Build the frontend Docker image |
+| `make test` | Run the test suite |
+
+Run `make` with no arguments to see this list.
+
+Collections indexed with **relative** paths (older ones) resolve against
+`IMEM_BASE_DIR` (defaults to your home dir); newer collections store absolute
+paths. On macOS, granting the terminal running `imem serve` access to protected
+folders (Downloads/Desktop/Documents) lets it serve those thumbnails.
 
 ## Model Details
 
@@ -120,11 +180,15 @@ Add `--help` to any command for its full flag list. The `imem` command is create
 - `imem/query.py` — text/image query against a collection (`query_images`)
 - `imem/catalog.py` — instance-level collection ops (list, count, delete)
 - `imem/config.py` (+ `config.yml`, `config.ini`) — packaged config loaded into a frozen `CONFIG`
+- `imem/api/` — FastAPI app (`imem serve`): `/query`, `/query/upload`, `/collections`, `/image`, … — serves the web frontend
 - `tools/dataloader.py` — test dataset loaders (Olivetti Faces, Caltech-101) — dev-only, not packaged
 - `tools/visualize.py` — notebook result-grid helper — dev-only, not packaged
 - `notebooks/01-poc.ipynb` — local/embedded Qdrant POC (test datasets)
 - `notebooks/00-poc-personal-imgs.ipynb` — server/container Qdrant POC using your own image collection (`docker compose up -d`)
-- `tests/` — pytest tests for the encoder, vector store, indexer, query & catalog modules
+- `frontend/` — React + TypeScript + Mantine SPA (built to static, served by nginx in Docker)
+- `Makefile` — dev orchestration (`make dev` / `up` / `serve` / `stop` / `down` / `test`)
+- `docker-compose.yml` — Qdrant + frontend containers
+- `tests/` — pytest tests for the encoder, vector store, indexer, query, catalog, API & config modules
 
 ## Testing
 
