@@ -23,3 +23,14 @@ def test_base_dir_default_empty():
     import imem.config as cfg
 
     assert cfg.CONFIG.api.base_dir == ""
+
+
+def test_indexer_min_resolution_defaults():
+    # Single home for the production minimums; test_indexer exercises the filter
+    # logic with its own small thresholds rather than depending on these numbers.
+    import imem.config as cfg
+
+    idx = cfg.CONFIG.indexer
+    assert idx.min_channels == 1
+    assert idx.min_height == 128
+    assert idx.min_width == 128
