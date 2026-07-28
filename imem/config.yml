@@ -23,6 +23,13 @@ indexer:
   # Images encoded + upserted per round before persisting to Qdrant. Smaller =
   # more frequent writes (less lost on interrupt), more upsert round-trips.
   chunk_size: 512
+  # Skip images below these minimums during indexing. Defaults of 1 keep
+  # everything, including 2-D / single-channel grayscale (channels are counted
+  # as image bands: grayscale=1, RGB=3, RGBA=4). Raise min_channels to 3 to drop
+  # grayscale, or min_width/min_height to drop thumbnails.
+  min_channels: 1
+  min_height: 128
+  min_width: 128
   # File extensions treated as images during recursive folder scans (case-insensitive).
   extensions:
     - .jpg

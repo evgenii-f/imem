@@ -47,6 +47,9 @@ class DatasetConfig:
 @dataclass(frozen=True)
 class IndexerConfig:
     chunk_size: int
+    min_channels: int
+    min_height: int
+    min_width: int
     extensions: frozenset
 
 
@@ -106,6 +109,9 @@ def _load() -> Config:
         ),
         indexer=IndexerConfig(
             chunk_size=int(y["indexer"]["chunk_size"]),
+            min_channels=int(y["indexer"]["min_channels"]),
+            min_height=int(y["indexer"]["min_height"]),
+            min_width=int(y["indexer"]["min_width"]),
             extensions=frozenset(str(ext).lower() for ext in y["indexer"]["extensions"]),
         ),
         qdrant=QdrantConfig(
