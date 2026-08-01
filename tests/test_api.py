@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import io
 from pathlib import Path
-from typing import List, Sequence, Tuple
+from typing import List, Sequence
 
 import numpy as np
 import pytest
@@ -29,30 +29,11 @@ pytest.importorskip("httpx")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+from conftest import EMBEDDING_DIM, FakeEncoder  # noqa: E402
 from imem.api.app import create_app  # noqa: E402
 from imem.vector_store import ImageVectorStore  # noqa: E402
 
-EMBEDDING_DIM = 8
 COLLECTION = "test_api_collection"
-
-
-class FakeEncoder:
-    """Fixed-embedding stand-in for ImageTextEncoder (cf. tests/test_query.py)."""
-
-    embedding_dim = EMBEDDING_DIM
-
-    def __init__(self, text_vec=None, image_vec=None):
-        self._text_vec = text_vec
-        self._image_vec = image_vec
-
-    def encode_text(self, texts: Sequence[str]) -> np.ndarray:
-        return np.array([self._text_vec for _ in list(texts)], dtype=np.float32)
-
-    def encode_images(
-        self, image_paths: Sequence[str], **kwargs
-    ) -> Tuple[np.ndarray, List[str]]:
-        paths = list(image_paths)
-        return np.array([self._image_vec for _ in paths], dtype=np.float32), paths
 
 
 def _unit_embeddings(n: int, dim: int = EMBEDDING_DIM) -> np.ndarray:

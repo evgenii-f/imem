@@ -14,9 +14,7 @@ Run with: pytest tests/test_indexer.py -v
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Sequence, Tuple
 
-import numpy as np
 import pytest
 from PIL import Image
 
@@ -25,30 +23,15 @@ pytest.importorskip("transformers")
 pytest.importorskip("qdrant_client")
 pytest.importorskip("blake3")
 
-from imem.indexer import IndexReport, _parse_extensions, index_folders, iter_image_paths  # noqa: E402
+from conftest import EMBEDDING_DIM, FakeEncoder  # noqa: E402
+from imem.indexer import (  # noqa: E402
+    IndexReport,
+    _filter_min_resolution,
+    _parse_extensions,
+    index_folders,
+    iter_image_paths,
+)
 from imem.vector_store import ImageVectorStore  # noqa: E402
-
-EMBEDDING_DIM = 8
-
-
-class FakeEncoder:
-    """Stands in for ImageTextEncoder: returns random embeddings, no model/network needed."""
-
-    embedding_dim = EMBEDDING_DIM
-
-    def __init__(self, drop_paths: Sequence[str] = ()):
-        # Paths the "encoder" pretends failed to load, to exercise failure reporting.
-        self._drop_paths = set(drop_paths)
-        # Number of encode_images() calls, to assert chunked streaming.
-        self.calls = 0
-
-    def encode_images(
-        self, image_paths: Sequence[str], **kwargs
-    ) -> Tuple[np.ndarray, List[str]]:
-        self.calls += 1
-        valid_paths = [p for p in image_paths if p not in self._drop_paths]
-        embeddings = np.random.randn(len(valid_paths), EMBEDDING_DIM).astype(np.float32)
-        return embeddings, valid_paths
 
 
 @pytest.fixture
@@ -63,6 +46,18 @@ def store() -> ImageVectorStore:
 def _write_image(path: Path, color=(10, 20, 30)) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     Image.new("RGB", (8, 8), color=color).save(path)
+
+
+def _index(folders, store, encoder, **kwargs):
+    """
+    index_folders with the resolution filter disabled by default, so tests that
+    aren't about it can use tiny images regardless of the production config
+    minimums. Filter tests call index_folders directly with explicit min_* args.
+    """
+    kwargs.setdefault("min_channels", 1)
+    kwargs.setdefault("min_height", 1)
+    kwargs.setdefault("min_width", 1)
+    return index_folders(folders, store, encoder, **kwargs)
 
 
 # ---- iter_image_paths ----
@@ -132,7 +127,7 @@ def test_index_folders_indexes_new_images(store: ImageVectorStore, tmp_path: Pat
     _write_image(tmp_path / "a.png", color=(1, 2, 3))
     _write_image(tmp_path / "b.png", color=(4, 5, 6))
 
-    report = index_folders([str(tmp_path)], store, FakeEncoder())
+    report = _index([str(tmp_path)], store, FakeEncoder())
 
     assert report == IndexReport(found=2, skipped_existing=0, indexed=2, failed=[])
     assert store.count() == 2
@@ -144,7 +139,7 @@ def test_index_folders_streams_in_chunks(store: ImageVectorStore, tmp_path: Path
         _write_image(tmp_path / f"c_{i}.png", color=(i, i * 2, i * 3))
     encoder = FakeEncoder()
 
-    report = index_folders([str(tmp_path)], store, encoder, chunk_size=2)
+    report = _index([str(tmp_path)], store, encoder, chunk_size=2)
 
     assert encoder.calls == 3  # ceil(5 / 2)
     assert report.indexed == 5
@@ -156,16 +151,16 @@ def test_index_folders_single_chunk_when_under_chunk_size(store: ImageVectorStor
     _write_image(tmp_path / "b.png", color=(9, 9, 9))
     encoder = FakeEncoder()
 
-    index_folders([str(tmp_path)], store, encoder, chunk_size=100)
+    _index([str(tmp_path)], store, encoder, chunk_size=100)
 
     assert encoder.calls == 1
 
 
 def test_index_folders_skips_already_indexed_paths(store: ImageVectorStore, tmp_path: Path):
     _write_image(tmp_path / "a.png")
-    index_folders([str(tmp_path)], store, FakeEncoder())
+    _index([str(tmp_path)], store, FakeEncoder())
 
-    report = index_folders([str(tmp_path)], store, FakeEncoder())
+    report = _index([str(tmp_path)], store, FakeEncoder())
 
     assert report == IndexReport(found=1, skipped_existing=1, indexed=0, failed=[])
     assert store.count() == 1
@@ -173,10 +168,10 @@ def test_index_folders_skips_already_indexed_paths(store: ImageVectorStore, tmp_
 
 def test_index_folders_only_encodes_new_paths(store: ImageVectorStore, tmp_path: Path):
     _write_image(tmp_path / "a.png")
-    index_folders([str(tmp_path)], store, FakeEncoder())
+    _index([str(tmp_path)], store, FakeEncoder())
 
     _write_image(tmp_path / "b.png")
-    report = index_folders([str(tmp_path)], store, FakeEncoder())
+    report = _index([str(tmp_path)], store, FakeEncoder())
 
     assert report == IndexReport(found=2, skipped_existing=1, indexed=1, failed=[])
     assert store.count() == 2
@@ -188,7 +183,7 @@ def test_index_folders_reports_failed_paths(store: ImageVectorStore, tmp_path: P
     _write_image(good)
     _write_image(bad)
 
-    report = index_folders([str(tmp_path)], store, FakeEncoder(drop_paths=[str(bad)]))
+    report = _index([str(tmp_path)], store, FakeEncoder(drop_paths=[str(bad)]))
 
     assert report.found == 2
     assert report.indexed == 1
@@ -197,10 +192,81 @@ def test_index_folders_reports_failed_paths(store: ImageVectorStore, tmp_path: P
 
 
 def test_index_folders_no_images_found(store: ImageVectorStore, tmp_path: Path):
-    report = index_folders([str(tmp_path)], store, FakeEncoder())
+    report = _index([str(tmp_path)], store, FakeEncoder())
 
     assert report == IndexReport(found=0, skipped_existing=0, indexed=0, failed=[])
     assert store.count() == 0
+
+
+# ---- min-resolution filtering ----
+# Tests pass explicit small thresholds and size images relative to them, so they
+# don't depend on the production config minimums (those are asserted in
+# test_config.py). _PASS clears the threshold; _FAIL is below it.
+_MIN = 16
+_PASS = (_MIN, _MIN)
+_FAIL = (_MIN // 2, _MIN // 2)
+
+
+def test_index_folders_indexes_image_meeting_min_size(store: ImageVectorStore, tmp_path: Path):
+    Image.new("RGB", _PASS).save(tmp_path / "ok.png")
+
+    report = index_folders([str(tmp_path)], store, FakeEncoder(), min_height=_MIN, min_width=_MIN)
+
+    assert report.skipped_small == 0
+    assert report.indexed == 1
+    assert store.count() == 1
+
+
+def test_index_folders_skips_image_below_min_size(store: ImageVectorStore, tmp_path: Path):
+    Image.new("RGB", _FAIL).save(tmp_path / "small.png")
+    encoder = FakeEncoder()
+
+    report = index_folders([str(tmp_path)], store, encoder, min_height=_MIN, min_width=_MIN)
+
+    assert report.skipped_small == 1
+    assert report.indexed == 0
+    assert encoder.calls == 0  # skipped before the (expensive) encoder
+    assert store.count() == 0
+
+
+def test_index_folders_keeps_grayscale_when_min_channels_1(store: ImageVectorStore, tmp_path: Path):
+    Image.new("L", _PASS).save(tmp_path / "gray.png")  # 1 band
+
+    report = index_folders(
+        [str(tmp_path)], store, FakeEncoder(), min_channels=1, min_height=_MIN, min_width=_MIN
+    )
+
+    assert report.skipped_small == 0
+    assert report.indexed == 1
+
+
+def test_index_folders_drops_grayscale_when_min_channels_raised(store: ImageVectorStore, tmp_path: Path):
+    Image.new("RGB", _PASS).save(tmp_path / "rgb.png")
+    Image.new("L", _PASS).save(tmp_path / "gray.png")  # 1 band
+
+    report = index_folders(
+        [str(tmp_path)], store, FakeEncoder(), min_channels=3, min_height=_MIN, min_width=_MIN
+    )
+
+    assert report.skipped_small == 1  # grayscale dropped, RGB kept
+    assert report.indexed == 1
+
+
+def test_filter_min_resolution_partitions_and_defers_unreadable(tmp_path: Path):
+    big = tmp_path / "big.png"
+    Image.new("RGB", _PASS).save(big)
+    small = tmp_path / "small.png"
+    Image.new("RGB", _FAIL).save(small)
+    broken = tmp_path / "broken.png"
+    broken.write_bytes(b"not really a png")
+
+    kept, skipped = _filter_min_resolution(
+        [str(big), str(small), str(broken)], min_channels=1, min_height=_MIN, min_width=_MIN
+    )
+
+    assert str(big) in kept
+    assert str(small) in skipped
+    assert str(broken) in kept  # unreadable deferred to the encoder, not counted small
 
 
 # ---- _parse_extensions ----

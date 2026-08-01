@@ -57,11 +57,19 @@ def _cmd_add(args: argparse.Namespace) -> int:
 
     encoder = ImageTextEncoder()
     store = _connect(args.collection, encoder.embedding_dim, recreate=args.recreate)
-    report = index_folders(args.folders, store, encoder, extensions=extensions)
+    report = index_folders(
+        args.folders,
+        store,
+        encoder,
+        extensions=extensions,
+        min_channels=args.min_channels,
+        min_height=args.min_height,
+        min_width=args.min_width,
+    )
 
     print(
         f"Found {report.found}, skipped {report.skipped_existing} (already indexed), "
-        f"indexed {report.indexed}, failed {len(report.failed)}."
+        f"{report.skipped_small} (too small), indexed {report.indexed}, failed {len(report.failed)}."
     )
     for path in report.failed:
         print(f"  failed: {path}")
@@ -157,6 +165,25 @@ def _build_parser() -> argparse.ArgumentParser:
         "--recreate",
         action="store_true",
         help="Delete and recreate the collection instead of adding to it.",
+    )
+    p_add.add_argument(
+        "--min-channels",
+        type=int,
+        default=CONFIG.indexer.min_channels,
+        help=f"Skip images with fewer channels (default: {CONFIG.indexer.min_channels}; "
+        "1 keeps grayscale/2-D, 3 drops grayscale).",
+    )
+    p_add.add_argument(
+        "--min-height",
+        type=int,
+        default=CONFIG.indexer.min_height,
+        help=f"Skip images shorter than this many pixels (default: {CONFIG.indexer.min_height}).",
+    )
+    p_add.add_argument(
+        "--min-width",
+        type=int,
+        default=CONFIG.indexer.min_width,
+        help=f"Skip images narrower than this many pixels (default: {CONFIG.indexer.min_width}).",
     )
     p_add.set_defaults(func=_cmd_add)
 

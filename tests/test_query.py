@@ -13,7 +13,7 @@ Run with: pytest tests/test_query.py -v
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Sequence, Tuple
+from typing import List, Sequence
 
 import numpy as np
 import pytest
@@ -24,35 +24,9 @@ pytest.importorskip("transformers")
 pytest.importorskip("qdrant_client")
 pytest.importorskip("blake3")
 
+from conftest import EMBEDDING_DIM, FakeEncoder  # noqa: E402
 from imem.query import looks_like_image_path, query_images  # noqa: E402
 from imem.vector_store import ImageVectorStore  # noqa: E402
-
-EMBEDDING_DIM = 8
-
-
-class FakeEncoder:
-    """
-    Stands in for ImageTextEncoder: encode_text/encode_images return fixed,
-    pre-set embeddings so a test can steer the query toward a known point.
-    """
-
-    embedding_dim = EMBEDDING_DIM
-
-    def __init__(self, text_vec=None, image_vec=None, drop_images: bool = False):
-        self._text_vec = text_vec
-        self._image_vec = image_vec
-        self._drop_images = drop_images
-
-    def encode_text(self, texts: Sequence[str]) -> np.ndarray:
-        return np.array([self._text_vec for _ in list(texts)], dtype=np.float32)
-
-    def encode_images(
-        self, image_paths: Sequence[str], **kwargs
-    ) -> Tuple[np.ndarray, List[str]]:
-        paths = list(image_paths)
-        if self._drop_images:
-            return np.empty((0, EMBEDDING_DIM), dtype=np.float32), []
-        return np.array([self._image_vec for _ in paths], dtype=np.float32), paths
 
 
 @pytest.fixture
